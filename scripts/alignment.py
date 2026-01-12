@@ -1,4 +1,3 @@
-# alignment_memory_optimized.py
 import pandas as pd
 from tqdm import tqdm
 import argparse
@@ -6,7 +5,7 @@ import os
 import tempfile
 
 def process_tsv_file(coord_dict, tsv_path, output_file, chunksize=200000, first_chunk_global=True):
-    """ 处理单个TSV文件 (此函数无需修改) """
+
     first_chunk = first_chunk_global
     for chunk in tqdm(
         pd.read_csv(tsv_path, sep='\t', chunksize=chunksize, header=None),
@@ -40,8 +39,8 @@ def process_tsv_file(coord_dict, tsv_path, output_file, chunksize=200000, first_
     return first_chunk
 
 def extract_unique_coords(tsv_paths, chunksize):
-    """(第一遍) 从所有TSV文件中提取不重复的坐标"""
-    print(f"\n{'='*40}\n[内存优化] 第一遍: 扫描TSV文件，提取唯一坐标...")
+
+    print(f"\n{'='*40}\n[Memory Optimization] Pass 1: Scanning TSV files to extract unique coordinates...")
     unique_coords = set()
     for tsv_path in tsv_paths:
         for chunk in tqdm(
@@ -53,12 +52,12 @@ def extract_unique_coords(tsv_paths, chunksize):
             pos_col = chunk[2] + (sig_n // 2)
             coords = chr_col + ':' + pos_col.astype(str)
             unique_coords.update(coords.tolist())
-    print(f"共找到 {len(unique_coords)} 个唯一坐标。")
+    print(f"Found {len(unique_coords)} unique coordinates.")
     return unique_coords
 
 def load_minimal_coord_dict(bed_path, coords_to_find):
-    """(第二遍) 根据坐标列表，从BED文件加载一个最小的字典"""
-    print(f"\n{'='*40}\n[内存优化] 第二遍: 从BED文件加载甲基化数据...")
+  
+    print(f"\n{'='*40}\n[Memory Optimization] Pass 2: Loading methylation data from BED file...")
     coords_to_find = set(coords_to_find)
     minimal_coord_dict = {}
     bed_dtypes = {'chr': 'category', 'start': 'int32', 'end': 'int32', 'RGB': 'str', 'coverage': 'int32', 'methylation': 'int32'}
@@ -79,32 +78,29 @@ def load_minimal_coord_dict(bed_path, coords_to_find):
             minimal_coord_dict.update(zip(relevant_chunk['chr'] + ':' + relevant_chunk['start'].astype(str), relevant_chunk['methylation']))
             found_count += len(relevant_chunk)
             if found_count == len(coords_to_find):
-                print("所有需要的甲基化数据均已找到，提前结束加载。")
+                print("All required methylation data has been found. Ending loading early.")
                 break
-    print(f"成功加载了 {len(minimal_coord_dict)} 条甲基化数据。")
+    print(f"Successfully loaded {len(minimal_coord_dict)} methylation records.")
     return minimal_coord_dict
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Align methylation data (Memory Optimized)')
-    parser.add_argument('--bed', required=True, help='甲基化BED文件路径')
-    parser.add_argument('--tsv', required=True, nargs='+', help='输入TSV文件路径（支持通配符）')
-    parser.add_argument('--output_file', required=True, help='输出文件路径')
-    parser.add_argument('--chunksize', type=int, default=200000, help='处理块大小（已优化为内存友好）')
+    parser.add_argument('--bed', required=True, help='Path to methylation BED file')
+    parser.add_argument('--tsv', required=True, nargs='+', help='Input TSV file paths (wildcards supported)')
+    parser.add_argument('--output_file', required=True, help='Output file path')
+    parser.add_argument('--chunksize', type=int, default=500000, help='Processing chunk size (optimized for memory)')
     
     args = parser.parse_args()
     
-    # --- 优化后的主流程 ---
-    # 1. 扫描TSV，获取所有唯一坐标
+
     coords_to_load = extract_unique_coords(args.tsv, args.chunksize)
-    
-    # 2. 从BED文件加载一个“迷你字典”
+ 
     coord_dict = load_minimal_coord_dict(args.bed, coords_to_load)
-    
-    # 3. 再次遍历TSV文件，进行匹配和输出
-    print(f"\n{'='*40}\n开始处理序列特征数据并写入最终结果...")
+
+    print(f"\n{'='*40}\nStarting to process sequence feature data and write final results...")
     first_chunk_global = True
     for tsv_path in args.tsv:
-        print(f"\n处理文件: {os.path.basename(tsv_path)}")
+        print(f"\nProcessing file: {os.path.basename(tsv_path)}")
         first_chunk_global = process_tsv_file(
             coord_dict=coord_dict,
             tsv_path=tsv_path,
@@ -113,4 +109,4 @@ if __name__ == "__main__":
             first_chunk_global=first_chunk_global
         )
     
-    print(f"\n{'='*40}\n处理完成！结果保存在: {os.path.abspath(args.output_file)}")
+    print(f"\n{'='*40}\nProcessing completed! Results saved to: {os.path.abspath(args.output_file)}")

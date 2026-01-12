@@ -5,6 +5,7 @@ import csv
 import random
 import torch.nn.functional as F
 from typing import Tuple, List
+
 class SignalAugmenter:
 
 
@@ -32,7 +33,7 @@ class SignalAugmenter:
             self.dropout_pts = (4, 12)
             self.time_stretch = (0.85, 1.15)
             self.mask_span = (8, 16)
-            self.permute_segments = (3, 6)  # 把序列切成K段后小范围打乱
+            self.permute_segments = (3, 6)  # Cut sequence into K segments and shuffle slightly
 
     @torch.no_grad()
     def _resample(self, x, stretch):
@@ -147,10 +148,12 @@ def safe_float(x, default=0.0):
         return float(x)
     except Exception:
         return default
+
 VOCAB = {c:i for i, c in enumerate(
     ["N","A","C","G","T"]
 )}
 NUM_SIGNALS = 13
+
 def encode_seq_13mer(seq_str):
     ids = [VOCAB.get(ch.upper(), VOCAB["N"]) for ch in seq_str[:NUM_SIGNALS]]
     if len(ids) < NUM_SIGNALS: ids += [VOCAB["N"]] * (NUM_SIGNALS - len(ids))
@@ -273,12 +276,12 @@ def load_dataset(filePath, feature_mode="both", mask=-1):
                     sig_list = [safe_float(x) for x in sig_str.split(",") if x.strip()]
                     if len(sig_list) != 100:
                         print(
-                            f"️ Warning: Row {row_idx}, Column {i + 1} signal length mismatch ({len(sig_list)}≠100), padding with zeros")
+                            f"Warning: Row {row_idx}, Column {i + 1} signal length mismatch ({len(sig_list)}≠100), padding with zeros")
                         sig_list = sig_list[:100] + [0.0] * (100 - len(sig_list))
                     normalized_sig = z_score_normalize(sig_list).tolist()
                     raw_signals.append(normalized_sig)
             except Exception as e:
-                print(f" Error: Row {row_idx} raw signal parsing failed: {e}, skipping this row")
+                print(f"Error: Row {row_idx} raw signal parsing failed: {e}, skipping this row")
                 continue
 
 
@@ -308,7 +311,7 @@ def load_dataset(filePath, feature_mode="both", mask=-1):
             try:
                 lbl = int(float(row[17]))
                 if lbl not in [0, 1]:
-                    print(f"⚠ Warning: Row {row_idx} label mismatch ({lbl}), set to 0")
+                    print(f" Warning: Row {row_idx} label mismatch ({lbl}), set to 0")
                     lbl = 0
                 label.append(lbl)
             except Exception as e:
@@ -340,6 +343,4 @@ class MyDataSet(Data.Dataset):
 
     def __getitem__(self, idx):
         return self.seq[idx], self.nano[idx], self.label[idx]
-
-
 
