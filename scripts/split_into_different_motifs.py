@@ -6,7 +6,7 @@ def split_methylation_file(input_file, chunk_size=100000, sep='\t'):
     Read a large file and split it by motif type (CG, CHG, CHH).
     
     :param input_file: Path to the input file.
-    :param chunk_size: Number of rows to read at a time. 100,000 rows typically uses tens of MB of memory—very safe.
+    :param chunk_size: Number of rows to read at a time.
     :param sep: Delimiter. Based on your data preview, this is usually '\t' (tab). Change to ',' if comma-separated.
     """
     

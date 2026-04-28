@@ -4,12 +4,12 @@ import pandas as pd
 
 DATA_FILES = {
     'CpG': {
-        'neg': 'all_neg_CpG.csv',
-        'pos': 'all_pos_CpG.csv'
+        'neg': 'all_neg.csv',
+        'pos': 'all_pos.csv'
     }
 }
 NUM_SIGNALS   = 13
-TARGET_TOTAL  = 400000
+TARGET_TOTAL  = 200000
 RATIOS        = (0.8, 0.1, 0.1)
 TSV_SEP_IN    = '\t'
 CSV_SEP_OUT   = ','
@@ -27,7 +27,7 @@ OUTPUT_COLUMNS = (
 def _pipe_to_comma(s: str) -> str:
     if pd.isna(s): return ''
     s = str(s)
-    s = s.replace('，', ',').replace('"', '').replace("'", '')
+    s = s.replace('"', '').replace("'", '')
     parts = re.split(r'[|,]', s)
     parts = [p.strip() for p in parts if p.strip() != '']
     return ','.join(parts)

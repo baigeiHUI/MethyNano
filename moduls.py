@@ -1,8 +1,9 @@
+from typing import Optional
+
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
 class ConvBNGeLU1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3,
                  stride=1, padding=0, dilation=1, groups=1, bias=False,
@@ -113,7 +114,7 @@ class SignalEncoder(nn.Module):
         )
 
         if self.use_stats:
-            self.stats_film = nn.Linear(3, feat_dim * 2)  # 每个位点 3 维 stats → 2 * feat_dim
+            self.stats_film = nn.Linear(3, feat_dim * 2)
 
     def forward(self, sig, stats):
         """
@@ -404,10 +405,6 @@ class ClassificationHead(nn.Module):
         probs = F.softmax(logits, dim=-1)
         return logits, probs
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 class MethyNano(nn.Module):
     def __init__(
         self,
@@ -450,7 +447,6 @@ class MethyNano(nn.Module):
         tokens_sig, g_sig = self.signal_encoder(sig, stats=stats)
         tokens_seq, g_seq = self.sequence_encoder(seq_ids, stats=stats)
         h_fused = self.fuser(tokens_seq, tokens_sig, stats=stats)  # [B,D]
-        g_mix = 0.5 * (g_sig + g_seq)
         h = h_fused
 
         out = {

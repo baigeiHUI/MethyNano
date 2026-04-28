@@ -1,10 +1,8 @@
 import os
 import re
-import random
 import argparse
 import numpy as np
 
-from statsmodels import robust
 import faulthandler
 faulthandler.enable()
 
@@ -51,42 +49,6 @@ def interp(signal):
     x_new = np.linspace(0.0, n - 1.0, 100, dtype=np.float32)
     y = np.interp(x_new, x_old, arr, left=arr[0], right=arr[-1]).astype(np.float32, copy=False)
     return np.round(y, 4).tolist()
-
-def signal_to_file2(out_dir,file_name,line):
-    """
-    Append the line to a file in the specified directory.
-    
-    Args:
-        out_dir (str): Output directory path.
-        file_name (str): Name of the file to append the line to.
-        line (str): Line of text to be written to the file.
-    """
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    
-    with open(out_dir+"/"+args.label,"a") as f:
-            f.writelines(line)
-
-def signal_to_file(out_dir,file_name,line):
-    """
-    Write the line to a file in the specified directory based on a random selection.
-    
-    Args:
-        out_dir (str): Output directory path.
-        file_name (str): Name of the file to be created.
-        line (str): Line of text to be written to the file.
-    """
-    if not os.path.exists(out_dir+"/test/"+args.label):
-        os.makedirs(out_dir+"/test/"+args.label)
-    if not os.path.exists(out_dir+"/train/"+args.label):
-        os.makedirs(out_dir+"/train/"+args.label)
-    if random.random() <= 0.2:
-        with open(out_dir+"/test/"+args.label+"/"+file_name,"w") as f:
-            f.writelines(line)
-    else:
-        with open(out_dir+"/train/"+args.label+"/"+file_name,"w") as f: 
-            f.writelines(line)
-
 
 def convert_base_name(base_name):
     """
@@ -166,10 +128,7 @@ def extract_13mer_features(signal_file):
     current_output = f"{base_name}_{file_index}{ext}"
     out = open(os.path.join(os.path.dirname(args.output), current_output), "w")
 
-    base_quality_dict = dict()
-
-
-    kmer_filter = convert_base_name("......C......")  
+    kmer_filter = convert_base_name(args.motif)
 
     clip = int(args.clip) if hasattr(args, "clip") else 6
     count = 0
@@ -190,12 +149,12 @@ def extract_13mer_features(signal_file):
                 start = int(items[2])
                 reference_sequence = items[3]
                 base_quality_list = items[4].split("|")
-                sequence = line.split("\t")[5]
+                sequence = items[5]
                 
                 if len(sequence) < 500:
                     continue
                 
-                signal_string = line.split("\t")[6]
+                signal_string = items[6]
                 raw_signal = [
                     np.fromstring(seg, sep='*', dtype=np.float32)
                     for seg in signal_string.split('|')
@@ -211,6 +170,8 @@ def extract_13mer_features(signal_file):
                 fl_max = float(full_length_signal.max())
                 fl_mean = float(full_length_signal.mean())
                 fl_std  = float(full_length_signal.std())
+                fl_med = float(np.median(full_length_signal))
+                fl_mad = safe_mad(full_length_signal)
 
                 for index in range(clip, len(sequence)-clip):
                     center_pos = index
@@ -242,8 +203,6 @@ def extract_13mer_features(signal_file):
                         denom = fl_std if fl_std > 0 else 1.0
                         kmer_raw_signal = [(x - fl_mean) / denom for x in kmer_raw_signal]
                     elif scaling == "median_mad":
-                        fl_med = float(np.median(full_length_signal))
-                        fl_mad = safe_mad(full_length_signal)
                         kmer_raw_signal = [(x - fl_med) / fl_mad for x in kmer_raw_signal]
               
                     _stats = [_safe_stats(x) for x in kmer_raw_signal]
@@ -277,7 +236,6 @@ def extract_13mer_features(signal_file):
                          out.write(field)
                     out.write('\n')
 
-                    file_name = f"{read_id}_{chr}_{start+center_pos}_{kmer_sequence}.feature"
                     count += 1
                     feature_count += 1
               

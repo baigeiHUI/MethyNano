@@ -276,7 +276,7 @@ def load_dataset(filePath, feature_mode="both", mask=-1):
                     sig_list = [safe_float(x) for x in sig_str.split(",") if x.strip()]
                     if len(sig_list) != 100:
                         print(
-                            f"Warning: Row {row_idx}, Column {i + 1} signal length mismatch ({len(sig_list)}≠100), padding with zeros")
+                            f"Warning: Row {row_idx}, Column {i + 1} signal length mismatch ({len(sig_list)} != 100), padding with zeros")
                         sig_list = sig_list[:100] + [0.0] * (100 - len(sig_list))
                     normalized_sig = z_score_normalize(sig_list).tolist()
                     raw_signals.append(normalized_sig)

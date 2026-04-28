@@ -83,8 +83,8 @@ def split_bed_by_methylation(bed_path, output_prefix, chunksize=1000000):
         print(f"\n{'='*50}")
         print(f"Processing completed!")
         print(f"Total records: {total_processed:,}")
-        print(f"Methylated (1): {total_methylated:,} → {output_1}")
-        print(f"Unmethylated (0): {total_unmethylated:,} → {output_0}")
+        print(f"Methylated (1): {total_methylated:,} -> {output_1}")
+        print(f"Unmethylated (0): {total_unmethylated:,} -> {output_0}")
         print(f"Other values: {total_processed - total_methylated - total_unmethylated:,}")
         print(f"{'='*50}")
         

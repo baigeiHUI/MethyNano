@@ -18,9 +18,8 @@ from scripts.dataLoader import (
     load_dataset,
     make_data,
     MyDataSet,
-    encode_seq_13mer,
-collate_supcon_13mer_train,
- collate_supcon_13mer_eval
+    collate_supcon_13mer_train,
+    collate_supcon_13mer_eval,
 )
 from scripts.loss import ContrastiveLoss
 from scripts.logger import ContrastiveLogger, contrastive_batch_metrics_pairwise
@@ -63,6 +62,9 @@ def _epoch_metrics_from_logits(logits_cat: torch.Tensor, labels_cat: torch.Tenso
     logits_cat: [N,2], labels_cat: [N]
     return: dict(loss, acc, precision, recall, f1, auroc, auprc)
     """
+    logits_cat = logits_cat.float()
+    labels_cat = labels_cat.long()
+
     ce = F.cross_entropy(logits_cat, labels_cat).item()
 
     probs = F.softmax(logits_cat, dim=-1)[:, 1].detach().cpu().numpy()
@@ -79,7 +81,6 @@ def _epoch_metrics_from_logits(logits_cat: torch.Tensor, labels_cat: torch.Tenso
     recall = tp / max(1, tp + fn)
     f1 = 2 * precision * recall / max(1e-12, precision + recall)
 
-    # AUROC / AUPRC
     order = probs.argsort()[::-1]
     y_sorted = ys[order]
     P = max(1, (ys == 1).sum())
@@ -140,9 +141,8 @@ def evaluate_joint(
 
         tot_cls_loss += float(cls_loss.item()) * bsz
         n_cls += bsz
-        all_logits.append(logits.detach().cpu())
-        all_labels.append(y.detach().cpu())
-
+        all_logits.append(logits.detach().float().cpu())
+        all_labels.append(y.detach().long().cpu())
         z1 = F.normalize(out1["z"].float(), dim=-1, eps=1e-6)
         out2 = model(sig2, seq2, sta2)
         z2 = F.normalize(out2["z"].float(), dim=-1, eps=1e-6)
@@ -152,7 +152,7 @@ def evaluate_joint(
 
         m = contrastive_batch_metrics_pairwise(z1, z2, y, t=t_uniform)
         for k in agg_sum.keys():
-            if k in m and m[k] == m[k]:  # 过滤 NaN
+            if k in m and m[k] == m[k]:
                 agg_sum[k] += float(m[k]) * bsz
         agg_cnt += bsz
 
@@ -316,9 +316,8 @@ def train_joint(
             sum_cls += float(loss_cls.item()) * bsz
             n_samp += bsz
 
-            train_logits_all.append(logits.detach().cpu())
-            train_labels_all.append(y.detach().cpu())
-
+            train_logits_all.append(logits.detach().float().cpu())
+            train_labels_all.append(y.detach().long().cpu())
             with torch.no_grad():
                 m = contrastive_batch_metrics_pairwise(z1, z2, y, t=2.0)
                 for k in train_sum.keys():
@@ -454,9 +453,6 @@ def build_dataloaders(
     return train_loader, val_loader
 
 
-# ======================
-# CLI
-# ======================
 def get_args():
     p = argparse.ArgumentParser("Contrastive pretraining (SupCon + cls) for MethyNano 13-mer")
     p.add_argument("--train_csv", type=str, required=True)

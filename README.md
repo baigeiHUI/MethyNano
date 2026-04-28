@@ -1,116 +1,148 @@
 # MethyNano
 
----
-## MethyNano: supervised contrastive pretraining enables robust and generalizable methylation detection from nanopore sequencing
+## MethyNano: Supervised Contrastive Pretraining Enables Robust and Generalizable Methylation Detection from Nanopore Sequencing
 
----
-### Project Overview
-5-Methylcytosine (5mC) plays an important role in gene regulation and development. 
-Although nanopore sequencing has enabled direct detection of 5mC, existing methods 
-still face several limitations, including poor generalization across species and sequence 
-contexts (CpG/CHG/CHH), as well as suboptimal integration of sequence and current 
-signals. Here, we present MethyNano, a deep learning framework incorporating a 
-contrastive learning strategy to detect 5mC from nanopore reads. By encouraging more 
-discriminative and stable representations, the contrastive objective improves the 
-model’s sensitivity to rare sequence contexts and reduces its prediction uncertainty in 
-challenging regions. Across datasets from A. thaliana, O. sativa, and H. sapiens, 
-MethyNano achieves superior performance on key metrics compared with other 
-existing methods. Extensive cross-species and cross-motif experiments demonstrate the 
-robust generalization performance of MethyNano, while dimensionality-reduction 
-visualizations of learned features provide an intuitive view of the model’s efficient 
-representation capability. Moreover, our ablation studies show that MethyNano’s 
-architecture enables more effective integration of critical features, leading to higher 
-predictive accuracy.
+## Project Overview
 
----
-### Installation
+5-Methylcytosine (5mC) plays an important role in gene regulation and development. Although nanopore sequencing enables direct detection of 5mC, existing methods still face limitations, including weak generalization across species and sequence contexts (CpG/CHG/CHH), as well as suboptimal integration of sequence and current signals.
 
-#### 0.Create new environment (e.g. Conda)
+MethyNano is a deep learning framework that uses supervised contrastive pretraining for 5mC detection from nanopore reads. By learning more discriminative and stable representations, the contrastive objective improves sensitivity in rare sequence contexts and reduces prediction uncertainty in challenging regions. Across datasets from A. thaliana, O. sativa, and H. sapiens, MethyNano achieves strong performance compared with existing methods. Cross-species and cross-motif experiments further demonstrate its generalization ability, and ablation studies show that the model architecture effectively integrates critical sequence and signal features.
+
+## Installation
+
+### 0. Create a New Environment
+
 ```
 conda create -n MethyNano python=3.10
+conda activate MethyNano
 ```
 
-#### 1.Cloning the Project
-First, you need to clone the project repository from GitHub to your local machine. You can do this by running the following command in your terminal:
-   
+### 1. Clone the Project
+
 ```
 git clone https://github.com/baigeiHUI/MethyNano.git
 cd MethyNano
 ```
-#### 2.Activate Environment
-```
-conda activate MethyNano
-```
-#### 3.Installing Requirements
-To install the required packages, run the following command in your terminal:
+
+### 2. Install Requirements
+
 ```
 pip install -r requirements.txt
 ```
-Note: We use PyTorch version `2.6.0+cu118` (compiled with CUDA `11.8`).
-Please check your local CUDA version and install a compatible PyTorch version from the official PyTorch website: https://pytorch.org
 
----
-### Data preprocessing
-#### Basecalling
-We use Dorado (`v0.7.2`)  with the `dna_r10.4.1_e8.2_400bps_hac@v4.2.0` model for basecalling.
- ```
- dorado basecaller dna_r10.4.1_e8.2_400bps_hac@v4.2.0 <pod5_files> \
- --device <device> \
- --reference <reference> \
- --emit-moves > /path/to/output/calls.bam
- ```
-Note: `--emit-moves` will output move table field for each entry in bam file.
-#### Extract features
-* Use samtools to sort alignments by genomic coordinates and create a` .bai` index file.
+MethyNano was tested with PyTorch `2.6.0+cu118` (CUDA `11.8`). Please check your local CUDA version and install a compatible PyTorch build from the official PyTorch website: https://pytorch.org
+
+For Linux GPU environments, install the CUDA-enabled PyTorch wheel before or after installing `requirements.txt`, for example:
+
+```
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+```
+
+## Data Preprocessing
+
+### Process Bisulfite Sequencing Results
+
+Install the required command-line tools with Anaconda:
+
+```
+conda install -y -c bioconda bismark bowtie2 samtools cutadapt
+```
+
+Modify `FASTQ`, `REF_FA`, and `WORK` in `scripts/pipeline_bismark.sh` to specify the bisulfite sequencing file, reference genome file, and output directory. Set `SAMPLE` to your sample prefix. Then run the script to generate a BED file containing site-level methylation labels:
+
+```
+./scripts/pipeline_bismark.sh
+```
+
+### Basecalling
+
+We use Dorado (`v0.7.2`) with the `dna_r10.4.1_e8.2_400bps_hac@v4.2.0` model for basecalling. The `--emit-moves` option is required because it stores the move table in each BAM record.
+
+```
+dorado basecaller dna_r10.4.1_e8.2_400bps_hac@v4.2.0 <pod5_files> \
+--device <device> \
+--reference <reference.fasta> \
+--emit-moves > calls.bam
+```
+
+Sort the BAM file by genomic coordinates and create a `.bai` index:
+
 ```
 samtools sort -o calls.sorted.bam calls.bam
 samtools index calls.sorted.bam
 ```
-+ Extract signal files and features using the following python scripts.
+
+### Extract Features
+
+Extract read-level signals from POD5 files and generate 13-mer features:
+
 ```
-python scripts/extract_pod5_signal.py --pod5 <pod5_files> --bam calls.sorted.bam -r reference.fasta -o output_signal.tsv -p 16
-python scripts/get_13mer_features.py --signal_file output_signal.tsv --output 13merBasicFeature.tsv --clip 4 --motif NNNNNNCNNNNNN
+python scripts/extract_pod5_signal.py \
+--pod5 <pod5_directory> \
+--bam calls.sorted.bam \
+-r reference.fasta \
+-o output_signal.tsv \
+-p 16
+
+python scripts/get_13mer_features.py \
+--signal_file output_signal.tsv \
+--output 13merBasicFeature.tsv \
+--clip 6 \
+--motif NNNNNNCNNNNNN
 ```
-+ Split the` BED` file into` fully positive (methylated)` and `fully negative (unmethylated)` subsets,
-which output two files: `methylation_1.bed` and `methylation_0.bed`.
+
+Split the BED file into fully methylated and fully unmethylated subsets. This step outputs `methylation_1.bed` and `methylation_0.bed`.
+
 ```
-python scripts/split_BED_ into_methylated_and_unmethylated.py \
+python "scripts/split_BED_ into_methylated_and_unmethylated .py" \
 --bed <bed_file> \
---output_prefix prefix \
+--output_prefix methylation \
 --chunksize 200000
 ```
 
-* Align the  BED file you required with 13-mer basic features based on chromosome and genomic position information
+Align BED methylation labels with 13-mer features by chromosome and genomic position:
+
 ```
-python scripts/alignment.py --bed <bed_file> \
---tsv  path/to/13merBasicFeatures \
---output_file  path/to/output.csv \
+python scripts/alignment.py \
+--bed <bed_file> \
+--tsv path/to/13merBasicFeatures \
+--output_file path/to/output.csv \
 --chunksize 200000
 ```
-#### Build  dataset
-Construct dataset from the aligned output CSV files.
-```
-python scripts/csv2dataset.py 
-```
----
-###  Train your own model
-Our model employs a two-stage training strategy:
-* Contrastive Pretraining: A dual-branch architecture with shared weights is used to learn feature representations from input samples, optimized via contrastive loss to capture discriminative methylation signal embeddings.
-+ Classification Fine-tuning: After pretraining, the contrastive projection head is discarded and replaced with a classification head, which is then fine-tuned on the downstream task to produce final methylation status predictions.
 
-#### Contrastive Pretraining
+### Build the Dataset
+
+Construct train, validation, and test datasets from the aligned CSV files:
+
 ```
-python train_contrastive.py --train_csv <train.csv> \
+python scripts/csv2dataset.py
+```
+
+## Train Your Own Model
+
+MethyNano uses a two-stage training strategy:
+
+* Contrastive pretraining: A dual-branch architecture with shared weights learns feature representations from input samples. The contrastive objective encourages discriminative methylation signal embeddings.
+* Classification fine-tuning: After pretraining, the contrastive projection head is discarded and replaced with a classification head. The model is then fine-tuned to predict methylation status.
+
+### Contrastive Pretraining
+
+```
+python train_contrastive.py \
+--train_csv <train.csv> \
 --val_csv <val.csv> \
 --batch_size 512 \
---epochs 100 \
+--epochs 50 \
 --lr 1e-3 \
---ckpt_dir  <save_path>
+--ckpt_dir <save_path>
 ```
-#### Classification Fine-tuning
+
+### Classification Fine-Tuning
+
 ```
-python finetune_cls.py --train_csv <train.csv> \
---val_csv <val.csv> \ 
+python finetune_cls.py \
+--train_csv <train.csv> \
+--val_csv <val.csv> \
 --batch_size 512 \
 --epochs 30 \
 --lr 8e-4 \
@@ -118,10 +150,41 @@ python finetune_cls.py --train_csv <train.csv> \
 --logdir <log_save_path> \
 --resume <pretrained_ckpt>
 ```
-Note: 
-The `--resume` argument indicates that the model will be fine-tuned using weights from contrastive pretraining. 
-If this argument is not provided, the model will be trained from scratch solely for classification.
 
-#### Evaluation
-Open `testDemo.ipynb` in Jupyter, set the `CKPT_PATH` and `TEST_CSV` variables to your checkpoint and test CSV paths, 
-then execute the notebook.
+The `--resume` argument loads weights from contrastive pretraining. If `--resume` is omitted, the classification model is trained from scratch.
+
+### Evaluation
+
+Open `testDemo.ipynb` in Jupyter, set `CKPT_PATH` and `TEST_CSV` to your checkpoint and test CSV paths, and then run the notebook.
+
+## Methylation Calling with a Trained Model
+
+Use `predict.py` to call methylation directly from nanopore POD5 reads, a coordinate-sorted BAM file, a reference FASTA file, and a trained MethyNano checkpoint.
+
+Before calling, basecall with Dorado using `--emit-moves`, then sort and index the BAM file as described above. After that, run methylation calling:
+
+```
+python predict.py \
+--pod5 <pod5_file_or_directory> \
+--bam calls.sorted.bam \
+--reference reference.fasta \
+--ckpt <ckpt_path> \
+--output /path/to/methynano_calls.csv \
+--recursive \
+--workers 4 \
+--feature-batch-size 512 \
+--gpu-batch-size 2048 \
+--threshold 0.5 \
+--device auto \
+--fp16
+```
+
+The output CSV contains one row per called candidate site, including `read_id`, genomic `start_pos` and `end_pos`, the 13-mer sequence, the positive methylation probability `prob_pos`, and the binary prediction `label_pred`.
+
+Common options:
+
+* `--pod5` accepts one or more POD5 files or directories.
+* `--recursive` searches for POD5 files recursively under input directories.
+* `--motif` defaults to `......C......`, which calls cytosines in a 13-mer window.
+* `--require-query-ref-match` keeps only sites where the query 13-mer exactly matches the reference 13-mer.
+* `--fp16` enables half-precision inference on CUDA GPUs.
